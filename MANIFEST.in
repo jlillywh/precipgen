@@ -1,0 +1,21 @@
+include README.md
+include CHANGELOG.md
+include CONTRIBUTING.md
+include LICENSE
+include requirements.txt
+include pyproject.toml
+include setup.py
+
+recursive-include precipgen *.py
+recursive-include docs *.md *.py
+recursive-include tests *.py
+
+exclude demo_*.py
+exclude test_*.py
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * .DS_Store
+recursive-exclude old_code *
+recursive-exclude output *
+recursive-exclude .pytest_cache *
+recursive-exclude .venv *

@@ -18,18 +18,18 @@
 
 ## Installation Methods
 
-### Method 1: Install from PyPI (Recommended)
+### Method 1: Install from GitHub (Recommended)
 
-The easiest way to install PrecipGen is using pip:
+The easiest way to install PrecipGen is directly from GitHub:
 
 ```bash
-pip install precipgen
+pip install git+https://github.com/jlillywh/precipgen.git
 ```
 
 To install with all optional dependencies:
 
 ```bash
-pip install precipgen[all]
+pip install "git+https://github.com/jlillywh/precipgen.git[dev]"
 ```
 
 ### Method 2: Install from Source
@@ -38,7 +38,7 @@ For the latest development version or to contribute:
 
 ```bash
 # Clone the repository
-git clone https://github.com/precipgen/precipgen.git
+git clone https://github.com/jlillywh/precipgen.git
 cd precipgen
 
 # Install in development mode
@@ -48,16 +48,19 @@ pip install -e .
 pip install -e .[dev]
 ```
 
-### Method 3: Using Conda
+### Method 3: Using Conda (Alternative)
 
 If you prefer conda package management:
 
 ```bash
-# Add conda-forge channel (if not already added)
-conda config --add channels conda-forge
+# Create conda environment with dependencies
+conda create -n precipgen python=3.11 numpy pandas scipy matplotlib pyyaml
 
-# Install PrecipGen
-conda install precipgen
+# Activate environment
+conda activate precipgen
+
+# Install PrecipGen from GitHub
+pip install git+https://github.com/jlillywh/precipgen.git
 ```
 
 ## Dependencies
@@ -203,13 +206,26 @@ print(f"Mean: {np.mean(synthetic):.2f} mm/day")
 
 #### Issue: "No module named 'precipgen'"
 
-**Solution:**
+**Causes:**
+- Package not installed in current Python environment
+- Using wrong Python environment/kernel
+- Installation failed silently
+
+**Solutions:**
 ```bash
-# Ensure you're in the correct environment
+# Check if precipgen is installed
 pip list | grep precipgen
 
-# If not found, reinstall
-pip install --upgrade precipgen
+# Check Python environment
+python -c "import sys; print(sys.executable)"
+
+# Reinstall from GitHub
+pip uninstall precipgen
+pip install git+https://github.com/jlillywh/precipgen.git
+
+# For Jupyter notebooks - ensure correct kernel
+pip install ipykernel
+python -m ipykernel install --user --name=precipgen-env
 ```
 
 #### Issue: Import errors with dependencies
@@ -217,11 +233,11 @@ pip install --upgrade precipgen
 **Solution:**
 ```bash
 # Update all dependencies
-pip install --upgrade numpy pandas scipy
+pip install --upgrade numpy pandas scipy matplotlib pyyaml
 
-# Or reinstall PrecipGen
+# Or reinstall PrecipGen with dependencies
 pip uninstall precipgen
-pip install precipgen
+pip install git+https://github.com/jlillywh/precipgen.git
 ```
 
 #### Issue: Permission errors on Windows

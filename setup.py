@@ -18,7 +18,7 @@ setup(
     description="A modular stochastic weather generation library",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/precipgen/precipgen",
+    url="https://github.com/jlillywh/precipgen",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -42,11 +42,6 @@ setup(
             "black>=21.0.0",
             "flake8>=3.9.0",
             "mypy>=0.910",
-        ],
-    },
-    entry_points={
-        "console_scripts": [
-            "precipgen=precipgen.cli:main",
         ],
     },
 )
