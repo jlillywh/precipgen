@@ -12,7 +12,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setup(
     name="precipgen",
-    version="0.1.2",
+    version="0.1.3",
     author="PrecipGen Development Team",
     author_email="dev@precipgen.org",
     description="A modular stochastic weather generation library",

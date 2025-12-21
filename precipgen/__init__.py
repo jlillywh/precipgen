@@ -6,7 +6,7 @@ using established meteorological algorithms, with emphasis on maintaining state
 between calls for seamless integration into dynamic system simulations.
 """
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 __author__ = "PrecipGen Development Team"
 
 # Core components
