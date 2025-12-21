@@ -7,18 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Comprehensive documentation system with mathematical foundation
-- Complete API reference documentation
-- User guide with step-by-step tutorials
-- Working code examples and tutorials
-- Algorithm documentation with Richardson & Wright references
-
-### Changed
-- Enhanced README with better structure and examples
+## [0.1.1] - 2024-12-21
 
 ### Fixed
-- Documentation consistency across all modules
+- **API Reference Documentation**: Corrected API reference to match actual implementation
+  - Fixed QualityReport structure (completeness_percentage, is_acceptable, recommendations)
+  - Added missing ParameterManifest class documentation
+  - Corrected method signatures (assess_data_quality with quality_flags and site_id parameters)
+  - Updated data structure field names to match implementation
+  - Added proper import examples and version compatibility notes
+
+### Added
+- **Enhanced Documentation**: 
+  - Comprehensive error handling examples with proper exception usage
+  - Performance optimization guidance for large datasets
+  - Batch processing examples for multiple stations
+  - Memory management best practices
+  - Version compatibility section
+
+### Changed
+- **Documentation Structure**: Improved API reference organization and accuracy
+- **Examples**: More realistic usage patterns with proper error checking
 
 ## [0.1.0] - 2024-01-15
 

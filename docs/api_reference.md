@@ -2,7 +2,26 @@
 
 ## Overview
 
-This document provides comprehensive API documentation for all public classes and methods in the PrecipGen library.
+This document provides comprehensive API documentation for all public classes and methods in the PrecipGen library (v0.1.1).
+
+## Installation and Imports
+
+```python
+# Install PrecipGen
+pip install precipgen
+
+# Core imports
+import precipgen as pg
+from precipgen import (
+    PrecipGenConfig, QualityConfig, DataValidator, GHCNParser,
+    AnalyticalEngine, SimulationEngine, BootstrapEngine
+)
+
+# For advanced usage
+from precipgen.api import StandardizedAPI
+from precipgen.utils.exceptions import PrecipGenError, ConfigurationError
+from precipgen.utils.logging_config import setup_logging
+```
 
 ## Module Structure
 
@@ -243,13 +262,17 @@ class DataValidator:
 ##### assess_data_quality()
 
 ```python
-def assess_data_quality(self, data: pd.Series) -> QualityReport
+def assess_data_quality(self, data: pd.Series, 
+                       quality_flags: pd.Series = None,
+                       site_id: Optional[str] = None) -> QualityReport
 ```
 
 Comprehensive data quality assessment.
 
 **Parameters:**
 - `data` (pd.Series): Precipitation time series
+- `quality_flags` (pd.Series, optional): Quality flags for each data point
+- `site_id` (str, optional): Site identifier for logging
 
 **Returns:**
 - `QualityReport`: Detailed quality assessment
@@ -257,20 +280,30 @@ Comprehensive data quality assessment.
 **Example:**
 ```python
 validator = pg.DataValidator(config.quality)
-report = validator.assess_data_quality(precip_data)
+report = validator.assess_data_quality(precip_data, site_id='USC00123456')
 
-print(f"Completeness: {report.completeness:.1%}")
-print(f"Quality score: {report.quality_score:.3f}")
-print(f"Recommendation: {report.recommendation}")
+print(f"Completeness: {report.completeness_percentage:.1f}%")
+print(f"Acceptable: {report.is_acceptable}")
+print(f"Issues: {report.issues}")
+for rec in report.recommendations:
+    print(f"  - {rec}")
 ```
 
 ##### validate_completeness()
 
 ```python
-def validate_completeness(self, data: pd.Series) -> ValidationResult
+def validate_completeness(self, data: pd.Series, 
+                         site_id: Optional[str] = None) -> ValidationResult
 ```
 
 Check data completeness against thresholds.
+
+**Parameters:**
+- `data` (pd.Series): Precipitation time series
+- `site_id` (str, optional): Site identifier for logging
+
+**Returns:**
+- `ValidationResult`: Validation result with errors and warnings
 
 ##### validate_physical_bounds()
 
@@ -536,6 +569,41 @@ class MonthlyParams:
     p_wd: float      # P(wet|dry) transition probability  
     alpha: float     # Gamma shape parameter
     beta: float      # Gamma scale parameter
+    
+    def to_dict(self) -> Dict[str, float]:
+        """Convert to dictionary for JSON serialization."""
+```
+
+### ParameterManifest
+
+```python
+@dataclass
+class ParameterManifest:
+    """Complete parameter manifest for simulation."""
+    metadata: Dict[str, Any]                           # Analysis metadata
+    overall_parameters: Dict[int, MonthlyParams]       # Monthly parameters (1-12)
+    trend_analysis: Optional[TrendAnalysis]            # Trend analysis results
+    sliding_window_stats: Optional[Dict[str, Any]]     # Window analysis statistics
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+```
+
+**Example:**
+```python
+# Access parameter manifest components
+manifest = engine.generate_parameter_manifest()
+
+# Get January parameters
+jan_params = manifest.overall_parameters[1]
+print(f"January P(W|W): {jan_params.p_ww:.3f}")
+
+# Check for trend analysis
+if manifest.trend_analysis:
+    print("Trend analysis available")
+    
+# Convert to dictionary for saving
+manifest_dict = manifest.to_dict()
 ```
 
 ### SimulationState
@@ -544,9 +612,10 @@ class MonthlyParams:
 @dataclass
 class SimulationState:
     """Current state of simulation engine."""
-    current_date: datetime    # Current simulation date
-    is_wet: bool             # Current wet/dry state
-    elapsed_days: int        # Days since simulation start
+    current_date: datetime           # Current simulation date
+    is_wet: bool                    # Current wet/dry state
+    random_state: tuple             # Random number generator state
+    elapsed_days: int               # Days since simulation start
     current_parameters: MonthlyParams  # Current month parameters
 ```
 
@@ -556,11 +625,34 @@ class SimulationState:
 @dataclass
 class QualityReport:
     """Data quality assessment report."""
-    completeness: float           # Data completeness (0-1)
-    quality_score: float         # Overall quality score (0-1)
-    out_of_bounds_count: int     # Number of values outside physical bounds
-    quality_flags_summary: Dict  # Summary of GHCN quality flags
-    recommendation: str          # "ACCEPT" or "REJECT"
+    completeness_percentage: float      # Data completeness percentage (0-100)
+    missing_data_count: int            # Number of missing data points
+    total_data_count: int              # Total number of data points
+    consecutive_missing_max: int        # Maximum consecutive missing days
+    physical_bounds_violations: int     # Number of values outside bounds
+    quality_flag_issues: int           # Number of quality flag issues
+    time_period_years: float           # Time period length in years
+    is_acceptable: bool                # Overall acceptability
+    issues: List[str]                  # List of identified issues
+    recommendations: List[str]         # Specific recommendations
+```
+
+**Example:**
+```python
+report = validator.assess_data_quality(data)
+
+print(f"Data completeness: {report.completeness_percentage:.1f}%")
+print(f"Missing data: {report.missing_data_count}/{report.total_data_count}")
+print(f"Acceptable for analysis: {report.is_acceptable}")
+
+if not report.is_acceptable:
+    print("Issues found:")
+    for issue in report.issues:
+        print(f"  - {issue}")
+    
+    print("Recommendations:")
+    for rec in report.recommendations:
+        print(f"  - {rec}")
 ```
 
 ### TrendAnalysis
@@ -569,9 +661,26 @@ class QualityReport:
 @dataclass
 class TrendAnalysis:
     """Results of trend analysis."""
-    seasonal_slopes: Dict[str, Dict[str, float]]    # season -> parameter -> slope
-    significance_tests: Dict[str, Dict[str, float]] # season -> parameter -> p_value
-    trend_confidence: Dict[str, Dict[str, str]]     # season -> parameter -> significance_level
+    seasonal_slopes: Dict[str, Dict[str, float]]        # season -> parameter -> slope
+    significance_tests: Dict[str, Dict[str, float]]     # season -> parameter -> p_value
+    trend_confidence: Dict[str, Dict[str, str]]         # season -> parameter -> significance_level
+    regression_type: str                                # Type of regression used
+    validation_results: Optional[Dict[str, Dict[str, bool]]]  # Slope validation results
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+```
+
+### ValidationResult
+
+```python
+@dataclass
+class ValidationResult:
+    """Result of data validation."""
+    is_valid: bool              # Whether validation passed
+    errors: List[str]           # List of validation errors
+    warnings: List[str]         # List of validation warnings
+    metadata: Dict[str, Any]    # Additional validation metadata
 ```
 
 ## API Module
@@ -697,50 +806,87 @@ log_config.setup_logging(level='INFO', log_file='precipgen.log')
 
 ```python
 import precipgen as pg
+import pandas as pd
 from datetime import datetime
 
 # 1. Configure
 config = pg.PrecipGenConfig({
     'data_sources': {
         'site1': {'file_path': 'precipitation.csv'}
-    }
+    },
+    'wet_day_threshold': 0.001
 })
 
 # 2. Load and validate data
 data = pd.read_csv('precipitation.csv', index_col='date', parse_dates=True)
 validator = pg.DataValidator(config.quality)
-quality_report = validator.assess_data_quality(data['precipitation'])
+quality_report = validator.assess_data_quality(
+    data['precipitation'], 
+    site_id='site1'
+)
 
-# 3. Analyze
-engine = pg.AnalyticalEngine(data['precipitation'])
-manifest = engine.generate_parameter_manifest()
+print(f"Data quality: {quality_report.completeness_percentage:.1f}% complete")
+print(f"Acceptable: {quality_report.is_acceptable}")
 
-# 4. Simulate
-sim = pg.SimulationEngine(manifest, trend_mode=True, random_seed=42)
-sim.initialize(datetime(2025, 1, 1))
-
-# 5. Generate synthetic data
-synthetic_data = [sim.step() for _ in range(365)]
+# 3. Analyze (only if data quality is acceptable)
+if quality_report.is_acceptable:
+    engine = pg.AnalyticalEngine(data['precipitation'])
+    manifest = engine.generate_parameter_manifest()
+    
+    # 4. Simulate
+    sim = pg.SimulationEngine(manifest, trend_mode=True, random_seed=42)
+    sim.initialize(datetime(2025, 1, 1))
+    
+    # 5. Generate synthetic data
+    synthetic_data = [sim.step() for _ in range(365)]
+    annual_total = sum(synthetic_data)
+    print(f"Synthetic annual total: {annual_total:.1f} mm")
+else:
+    print("Data quality insufficient for analysis")
+    for issue in quality_report.issues:
+        print(f"  Issue: {issue}")
 ```
 
 ### GHCN Data Processing
 
 ```python
+import precipgen as pg
+
 # Parse GHCN data
-parser = pg.GHCNParser()
+parser = pg.GHCNParser('USC00123456.dly')
 ghcn_data = parser.parse_dly_file('USC00123456.dly')
 precip_data = parser.extract_precipitation(ghcn_data)
 
-# Quality assessment
+# Quality assessment with GHCN quality flags
+quality_flags = parser.parse_quality_flags(ghcn_data)
 validator = pg.DataValidator(config.quality)
-quality_report = validator.assess_data_quality(precip_data)
+quality_report = validator.assess_data_quality(
+    precip_data, 
+    quality_flags=quality_flags['quality_flag'],
+    site_id='USC00123456'
+)
 
-if quality_report.recommendation == 'ACCEPT':
+print(f"Station: USC00123456")
+print(f"Data period: {len(precip_data)} days ({quality_report.time_period_years:.1f} years)")
+print(f"Completeness: {quality_report.completeness_percentage:.1f}%")
+print(f"Quality flag issues: {quality_report.quality_flag_issues}")
+
+if quality_report.is_acceptable:
     # Proceed with analysis
-    engine = pg.AnalyticalEngine(precip_data)
+    engine = pg.AnalyticalEngine(precip_data, wet_day_threshold=0.001)
     manifest = engine.generate_parameter_manifest()
+    
+    # Save parameters
+    import json
+    with open('parameters.json', 'w') as f:
+        json.dump(manifest.to_dict(), f, indent=2)
+        
+    print("Parameter estimation completed successfully")
 else:
-    print(f"Data quality insufficient: {quality_report.quality_score:.3f}")
+    print("Data quality insufficient for reliable parameter estimation")
+    print("Recommendations:")
+    for rec in quality_report.recommendations:
+        print(f"  - {rec}")
 ```
 
 ### Non-Stationary Simulation
@@ -804,12 +950,21 @@ results = [model.daily_step() for _ in range(365)]
 All PrecipGen exceptions inherit from `PrecipGenError`:
 
 ```python
+import precipgen as pg
+from precipgen.utils.exceptions import (
+    PrecipGenError, ConfigurationError, DataError, 
+    ValidationError, SimulationError
+)
+
 try:
     config = pg.PrecipGenConfig(invalid_config)
 except pg.ConfigurationError as e:
     print(f"Configuration error: {e}")
+    if e.guidance:
+        print(f"Guidance: {e.guidance}")
 except pg.PrecipGenError as e:
     print(f"PrecipGen error: {e}")
+    print(f"Details: {e.details}")
 except Exception as e:
     print(f"Unexpected error: {e}")
 ```
@@ -817,22 +972,30 @@ except Exception as e:
 ### Common Error Patterns
 
 ```python
+import precipgen as pg
+from precipgen.utils.exceptions import (
+    InsufficientDataError, ParseError, StateError
+)
+
 # Handle insufficient data
 try:
     engine = pg.AnalyticalEngine(sparse_data)
     params = engine.calculate_monthly_parameters()
 except pg.InsufficientDataError as e:
     print(f"Not enough data: {e}")
+    print(f"Minimum required: {e.details.get('minimum_required', 'unknown')}")
     # Use default parameters or longer time period
 
 # Handle file errors
 try:
-    parser = pg.GHCNParser()
+    parser = pg.GHCNParser('missing_file.dly')
     data = parser.parse_dly_file('missing_file.dly')
 except FileNotFoundError:
     print("Data file not found")
 except pg.ParseError as e:
     print(f"File format error: {e}")
+    if e.guidance:
+        print(f"Try: {e.guidance}")
 
 # Handle simulation errors
 try:
@@ -841,6 +1004,9 @@ try:
 except pg.StateError as e:
     print(f"Simulation state error: {e}")
     sim.reset()  # Reset to initial state
+except pg.SimulationError as e:
+    print(f"Simulation error: {e}")
+    print(f"Details: {e.details}")
 ```
 
 ## Performance Considerations
@@ -848,33 +1014,148 @@ except pg.StateError as e:
 ### Memory Optimization
 
 ```python
+import pandas as pd
+import precipgen as pg
+
 # Use generators for large datasets
-def process_large_dataset(file_path):
-    chunk_size = 10000
+def process_large_dataset(file_path, chunk_size=10000):
+    """Process large datasets in chunks to manage memory usage."""
     for chunk in pd.read_csv(file_path, chunksize=chunk_size):
         yield chunk
 
 # Process in chunks
-for chunk in process_large_dataset('large_file.csv'):
-    engine = pg.AnalyticalEngine(chunk['precipitation'])
-    # Process chunk
+results = []
+for chunk in process_large_dataset('large_precipitation_file.csv'):
+    # Validate chunk quality first
+    validator = pg.DataValidator(config.quality)
+    quality_report = validator.assess_data_quality(
+        chunk['precipitation'], 
+        site_id=f"chunk_{len(results)}"
+    )
+    
+    if quality_report.is_acceptable:
+        engine = pg.AnalyticalEngine(chunk['precipitation'])
+        chunk_params = engine.calculate_monthly_parameters()
+        results.append(chunk_params)
 ```
 
 ### Computational Efficiency
 
 ```python
+import numpy as np
+import precipgen as pg
+from datetime import datetime
+
 # Pre-compute parameters for multiple simulations
+engine = pg.AnalyticalEngine(historical_data)
 manifest = engine.generate_parameter_manifest()
 
 # Run multiple realizations efficiently
 realizations = []
-for seed in range(100):
+seeds = range(100)  # 100 realizations
+
+for seed in seeds:
     sim = pg.SimulationEngine(manifest, random_seed=seed)
     sim.initialize(datetime(2025, 1, 1))
+    
+    # Generate one year of data
     realization = [sim.step() for _ in range(365)]
     realizations.append(realization)
 
 # Analyze ensemble statistics
-ensemble_mean = np.mean(realizations, axis=0)
-ensemble_std = np.std(realizations, axis=0)
+realizations_array = np.array(realizations)
+ensemble_mean = np.mean(realizations_array, axis=0)
+ensemble_std = np.std(realizations_array, axis=0)
+ensemble_percentiles = np.percentile(realizations_array, [10, 50, 90], axis=0)
+
+print(f"Ensemble size: {len(realizations)} realizations")
+print(f"Mean annual total: {np.sum(ensemble_mean):.1f} mm")
+print(f"Standard deviation: {np.std(np.sum(realizations_array, axis=1)):.1f} mm")
 ```
+
+### Batch Processing
+
+```python
+import precipgen as pg
+from pathlib import Path
+import json
+
+def process_multiple_stations(data_directory, output_directory):
+    """Process multiple GHCN stations efficiently."""
+    
+    data_dir = Path(data_directory)
+    output_dir = Path(output_directory)
+    output_dir.mkdir(exist_ok=True)
+    
+    # Find all .dly files
+    dly_files = list(data_dir.glob('*.dly'))
+    
+    results = {}
+    
+    for dly_file in dly_files:
+        station_id = dly_file.stem
+        
+        try:
+            # Parse and validate
+            parser = pg.GHCNParser(str(dly_file))
+            data = parser.parse_dly_file(str(dly_file))
+            precip_data = parser.extract_precipitation(data)
+            
+            validator = pg.DataValidator(config.quality)
+            quality_report = validator.assess_data_quality(
+                precip_data, 
+                site_id=station_id
+            )
+            
+            if quality_report.is_acceptable:
+                # Analyze
+                engine = pg.AnalyticalEngine(precip_data)
+                manifest = engine.generate_parameter_manifest()
+                
+                # Save results
+                output_file = output_dir / f"{station_id}_parameters.json"
+                with open(output_file, 'w') as f:
+                    json.dump(manifest.to_dict(), f, indent=2)
+                
+                results[station_id] = {
+                    'status': 'success',
+                    'completeness': quality_report.completeness_percentage,
+                    'years': quality_report.time_period_years
+                }
+            else:
+                results[station_id] = {
+                    'status': 'failed',
+                    'reason': 'insufficient_quality',
+                    'issues': quality_report.issues
+                }
+                
+        except Exception as e:
+            results[station_id] = {
+                'status': 'error',
+                'error': str(e)
+            }
+    
+    return results
+
+# Usage
+results = process_multiple_stations('data/ghcn/', 'output/parameters/')
+successful = sum(1 for r in results.values() if r['status'] == 'success')
+print(f"Successfully processed {successful}/{len(results)} stations")
+```
+
+## Version Compatibility
+
+**Current Version:** 0.1.0
+
+### Breaking Changes
+- This is the initial release
+- API is subject to change in future versions
+- Recommend pinning to specific version: `precipgen==0.1.0`
+
+### Deprecation Warnings
+- None in current version
+
+### Future Compatibility
+- Parameter manifest format is designed to be forward-compatible
+- Configuration structure may evolve in future versions
+- Exception hierarchy is stable and will be maintained
