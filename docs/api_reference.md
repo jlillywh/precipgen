@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides comprehensive API documentation for all public classes and methods in the PrecipGen library (v0.1.1).
+This document provides comprehensive API documentation for all public classes and methods in the PrecipGen library (v0.1.3).
 
 ## Installation and Imports
 
@@ -13,8 +13,9 @@ pip install precipgen
 # Core imports
 import precipgen as pg
 from precipgen import (
-    PrecipGenConfig, QualityConfig, DataValidator, GHCNParser,
-    AnalyticalEngine, SimulationEngine, BootstrapEngine
+    PrecipGenConfig, QualityConfig, DataValidator, GHCNParser, GHCNDownloader,
+    AnalyticalEngine, SimulationEngine, BootstrapEngine,
+    find_nearby_stations, download_station
 )
 
 # For advanced usage
@@ -312,6 +313,220 @@ def validate_physical_bounds(self, data: pd.Series) -> ValidationResult
 ```
 
 Validate precipitation values are within physical bounds.
+
+### precipgen.data.GHCNDownloader
+
+Automatic GHCN data discovery and download utility.
+
+```python
+class GHCNDownloader:
+    """
+    Download GHCN Daily data files from NOAA servers.
+    
+    Provides methods to search for stations, download .dly files,
+    and manage local GHCN data collections.
+    """
+    
+    def __init__(self, cache_dir: Optional[str] = None)
+```
+
+**Parameters:**
+- `cache_dir` (str, optional): Directory to cache downloaded files (default: ./ghcn_data)
+
+#### Methods
+
+##### find_stations_by_location()
+
+```python
+def find_stations_by_location(self, latitude: float, longitude: float, 
+                             radius_km: float = 50, 
+                             min_years: int = 10) -> List[Dict]
+```
+
+Find GHCN stations near a geographic location.
+
+**Parameters:**
+- `latitude` (float): Latitude in decimal degrees
+- `longitude` (float): Longitude in decimal degrees  
+- `radius_km` (float): Search radius in kilometers (default: 50)
+- `min_years` (int): Minimum years of precipitation data required (default: 10)
+
+**Returns:**
+- `List[Dict]`: List of station dictionaries with metadata
+
+**Example:**
+```python
+downloader = pg.GHCNDownloader()
+stations = downloader.find_stations_by_location(40.7128, -74.0060, radius_km=25)
+
+for station in stations[:3]:
+    print(f"{station['id']}: {station['name']} ({station['distance_km']:.1f} km)")
+    print(f"  Data: {station['first_year']}-{station['last_year']} ({station['years_available']} years)")
+```
+
+##### find_stations_by_name()
+
+```python
+def find_stations_by_name(self, name_pattern: str, 
+                         min_years: int = 10) -> List[Dict]
+```
+
+Find GHCN stations by name pattern.
+
+**Parameters:**
+- `name_pattern` (str): Station name pattern (case-insensitive)
+- `min_years` (int): Minimum years of precipitation data required
+
+**Returns:**
+- `List[Dict]`: List of station dictionaries with metadata
+
+**Example:**
+```python
+downloader = pg.GHCNDownloader()
+stations = downloader.find_stations_by_name("Seattle", min_years=15)
+
+for station in stations:
+    print(f"{station['id']}: {station['name']}")
+    print(f"  Data: {station['first_year']}-{station['last_year']}")
+```
+
+##### download_station_data()
+
+```python
+def download_station_data(self, station_id: str, 
+                         force_refresh: bool = False) -> str
+```
+
+Download GHCN .dly file for a specific station.
+
+**Parameters:**
+- `station_id` (str): GHCN station identifier (e.g., 'USC00123456')
+- `force_refresh` (bool): Force re-download even if file exists (default: False)
+
+**Returns:**
+- `str`: Path to downloaded .dly file
+
+**Raises:**
+- `NetworkError`: If download fails
+- `DataLoadError`: If file cannot be saved
+
+**Example:**
+```python
+downloader = pg.GHCNDownloader()
+file_path = downloader.download_station_data('USW00024233')
+print(f"Downloaded: {file_path}")
+```
+
+##### download_multiple_stations()
+
+```python
+def download_multiple_stations(self, station_ids: List[str], 
+                              delay_seconds: float = 1.0) -> Dict[str, str]
+```
+
+Download multiple GHCN .dly files with rate limiting.
+
+**Parameters:**
+- `station_ids` (List[str]): List of GHCN station identifiers
+- `delay_seconds` (float): Delay between downloads (default: 1.0)
+
+**Returns:**
+- `Dict[str, str]`: Dictionary mapping station_id -> file_path for successful downloads
+
+**Example:**
+```python
+downloader = pg.GHCNDownloader()
+stations = ['USW00024233', 'USC00305426']
+files = downloader.download_multiple_stations(stations, delay_seconds=2.0)
+
+print(f"Downloaded {len(files)} files")
+for station_id, file_path in files.items():
+    print(f"  {station_id}: {file_path}")
+```
+
+##### get_station_info()
+
+```python
+def get_station_info(self, station_id: str) -> Optional[Dict]
+```
+
+Get detailed information about a specific station.
+
+**Parameters:**
+- `station_id` (str): GHCN station identifier
+
+**Returns:**
+- `Dict`: Station information dictionary or None if not found
+
+**Example:**
+```python
+downloader = pg.GHCNDownloader()
+info = downloader.get_station_info('USW00024233')
+
+if info:
+    print(f"Station: {info['name']}")
+    print(f"Location: {info['latitude']}, {info['longitude']}")
+    print(f"Elevation: {info['elevation_m']} m")
+    print(f"Data: {info['first_year']}-{info['last_year']}")
+```
+
+#### Convenience Functions
+
+##### find_nearby_stations()
+
+```python
+def find_nearby_stations(latitude: float, longitude: float, 
+                        radius_km: float = 50, min_years: int = 10) -> List[Dict]
+```
+
+Convenience function to find nearby GHCN stations.
+
+**Parameters:**
+- `latitude` (float): Latitude in decimal degrees
+- `longitude` (float): Longitude in decimal degrees
+- `radius_km` (float): Search radius in kilometers
+- `min_years` (int): Minimum years of precipitation data
+
+**Returns:**
+- `List[Dict]`: List of station dictionaries
+
+**Example:**
+```python
+# Find stations near New York City
+stations = pg.find_nearby_stations(40.7128, -74.0060, radius_km=50)
+print(f"Found {len(stations)} stations near NYC")
+
+# Use the closest station
+if stations:
+    best_station = stations[0]
+    print(f"Closest: {best_station['name']} ({best_station['distance_km']:.1f} km)")
+```
+
+##### download_station()
+
+```python
+def download_station(station_id: str, cache_dir: Optional[str] = None) -> str
+```
+
+Convenience function to download a single GHCN station file.
+
+**Parameters:**
+- `station_id` (str): GHCN station identifier
+- `cache_dir` (str, optional): Directory to save file (default: ./ghcn_data)
+
+**Returns:**
+- `str`: Path to downloaded .dly file
+
+**Example:**
+```python
+# Download Seattle airport station
+file_path = pg.download_station('USW00024233')
+print(f"Downloaded to: {file_path}")
+
+# Use immediately with parser
+parser = pg.GHCNParser(file_path)
+data = parser.extract_precipitation(parser.parse_dly_file(file_path))
+```
 
 ## Engines Module
 
@@ -847,7 +1062,70 @@ else:
         print(f"  Issue: {issue}")
 ```
 
-### GHCN Data Processing
+### Automatic GHCN Data Workflow (New in v0.1.3)
+
+```python
+import precipgen as pg
+from datetime import datetime
+
+# 1. Find stations near your location (no manual searching!)
+print("Finding stations near Seattle...")
+stations = pg.find_nearby_stations(
+    latitude=47.6062,   # Seattle coordinates
+    longitude=-122.3321,
+    radius_km=50,       # Within 50 km
+    min_years=20        # At least 20 years of data
+)
+
+print(f"Found {len(stations)} stations")
+for i, station in enumerate(stations[:3]):  # Show top 3
+    print(f"{i+1}. {station['id']}: {station['name']}")
+    print(f"   Distance: {station['distance_km']:.1f} km")
+    print(f"   Data: {station['first_year']}-{station['last_year']} ({station['years_available']} years)")
+
+# 2. Download the best station automatically
+if stations:
+    best_station = stations[0]  # Closest station
+    print(f"\nUsing: {best_station['name']}")
+    
+    file_path = pg.download_station(best_station['id'])
+    print(f"Downloaded: {file_path}")
+    
+    # 3. Parse and validate (seamless integration)
+    parser = pg.GHCNParser(file_path)
+    ghcn_data = parser.parse_dly_file(file_path)
+    precip_data = parser.extract_precipitation(ghcn_data)
+    
+    validator = pg.DataValidator(pg.QualityConfig())
+    quality_report = validator.assess_data_quality(precip_data, site_id=best_station['id'])
+    
+    print(f"Data quality: {quality_report.completeness_percentage:.1f}% complete")
+    
+    # 4. Analyze and generate (if quality is good)
+    if quality_report.is_acceptable:
+        print("Analyzing precipitation patterns...")
+        engine = pg.AnalyticalEngine(precip_data, wet_day_threshold=0.001)
+        manifest = engine.generate_parameter_manifest()
+        
+        print("Generating synthetic precipitation...")
+        sim = pg.SimulationEngine(manifest, random_seed=42)
+        sim.initialize(datetime(2025, 1, 1))
+        synthetic = [sim.step() for _ in range(365)]
+        
+        # Compare results
+        historical_annual = precip_data.groupby(precip_data.index.year).sum().mean()
+        synthetic_annual = sum(synthetic)
+        
+        print(f"✓ Complete workflow successful!")
+        print(f"Historical annual mean: {historical_annual:.1f} mm")
+        print(f"Synthetic annual total: {synthetic_annual:.1f} mm")
+    else:
+        print("Data quality insufficient - try a different station")
+        for issue in quality_report.issues:
+            print(f"  - {issue}")
+```
+
+### GHCN Data Processing (Manual Files)
 
 ```python
 import precipgen as pg
@@ -1073,84 +1351,128 @@ print(f"Mean annual total: {np.sum(ensemble_mean):.1f} mm")
 print(f"Standard deviation: {np.std(np.sum(realizations_array, axis=1)):.1f} mm")
 ```
 
-### Batch Processing
+### Batch GHCN Station Processing (New in v0.1.3)
 
 ```python
 import precipgen as pg
-from pathlib import Path
-import json
+from datetime import datetime
 
-def process_multiple_stations(data_directory, output_directory):
-    """Process multiple GHCN stations efficiently."""
-    
-    data_dir = Path(data_directory)
-    output_dir = Path(output_directory)
-    output_dir.mkdir(exist_ok=True)
-    
-    # Find all .dly files
-    dly_files = list(data_dir.glob('*.dly'))
-    
-    results = {}
-    
-    for dly_file in dly_files:
-        station_id = dly_file.stem
+# 1. Find multiple stations in a region
+print("Finding stations in Pacific Northwest...")
+downloader = pg.GHCNDownloader()
+
+# Search multiple cities
+cities = [
+    ("Seattle", 47.6062, -122.3321),
+    ("Portland", 45.5152, -122.6784),
+    ("Vancouver", 49.2827, -123.1207),
+    ("Spokane", 47.6587, -117.4260)
+]
+
+all_stations = []
+for city_name, lat, lon in cities:
+    stations = pg.find_nearby_stations(lat, lon, radius_km=25, min_years=15)
+    for station in stations[:2]:  # Top 2 per city
+        station['city'] = city_name
+        all_stations.append(station)
+
+print(f"Found {len(all_stations)} stations across {len(cities)} cities")
+
+# 2. Batch download with progress tracking
+station_ids = [s['id'] for s in all_stations]
+print(f"Downloading {len(station_ids)} stations...")
+
+files = downloader.download_multiple_stations(
+    station_ids, 
+    delay_seconds=2.0  # Be respectful to NOAA servers
+)
+
+print(f"Successfully downloaded {len(files)} files")
+
+# 3. Batch analysis and comparison
+results = {}
+for station_id, file_path in files.items():
+    try:
+        # Find station info
+        station_info = next(s for s in all_stations if s['id'] == station_id)
         
-        try:
-            # Parse and validate
-            parser = pg.GHCNParser(str(dly_file))
-            data = parser.parse_dly_file(str(dly_file))
-            precip_data = parser.extract_precipitation(data)
+        # Parse and analyze
+        parser = pg.GHCNParser(file_path)
+        data = parser.extract_precipitation(parser.parse_dly_file(file_path))
+        
+        validator = pg.DataValidator(pg.QualityConfig())
+        quality_report = validator.assess_data_quality(data, site_id=station_id)
+        
+        if quality_report.is_acceptable:
+            engine = pg.AnalyticalEngine(data, wet_day_threshold=0.001)
+            manifest = engine.generate_parameter_manifest()
             
-            validator = pg.DataValidator(config.quality)
-            quality_report = validator.assess_data_quality(
-                precip_data, 
-                site_id=station_id
-            )
+            # Calculate summary statistics
+            annual_totals = data.groupby(data.index.year).sum()
             
-            if quality_report.is_acceptable:
-                # Analyze
-                engine = pg.AnalyticalEngine(precip_data)
-                manifest = engine.generate_parameter_manifest()
-                
-                # Save results
-                output_file = output_dir / f"{station_id}_parameters.json"
-                with open(output_file, 'w') as f:
-                    json.dump(manifest.to_dict(), f, indent=2)
-                
-                results[station_id] = {
-                    'status': 'success',
-                    'completeness': quality_report.completeness_percentage,
-                    'years': quality_report.time_period_years
-                }
-            else:
-                results[station_id] = {
-                    'status': 'failed',
-                    'reason': 'insufficient_quality',
-                    'issues': quality_report.issues
-                }
-                
-        except Exception as e:
             results[station_id] = {
-                'status': 'error',
-                'error': str(e)
+                'city': station_info['city'],
+                'name': station_info['name'],
+                'distance_km': station_info['distance_km'],
+                'years_available': station_info['years_available'],
+                'completeness': quality_report.completeness_percentage,
+                'annual_mean': annual_totals.mean(),
+                'annual_std': annual_totals.std(),
+                'manifest': manifest
             }
-    
-    return results
+            
+            print(f"✓ {station_info['city']}: {station_info['name']}")
+            print(f"  Annual mean: {annual_totals.mean():.1f} mm")
+        else:
+            print(f"✗ {station_id}: Quality insufficient")
+            
+    except Exception as e:
+        print(f"✗ {station_id}: Error - {e}")
 
-# Usage
-results = process_multiple_stations('data/ghcn/', 'output/parameters/')
-successful = sum(1 for r in results.values() if r['status'] == 'success')
-print(f"Successfully processed {successful}/{len(results)} stations")
+# 4. Regional comparison
+print(f"\nRegional Precipitation Summary:")
+print("-" * 50)
+for city_name, _, _ in cities:
+    city_stations = [r for r in results.values() if r['city'] == city_name]
+    if city_stations:
+        city_mean = sum(s['annual_mean'] for s in city_stations) / len(city_stations)
+        print(f"{city_name:12}: {city_mean:6.1f} mm/year ({len(city_stations)} stations)")
+
+# 5. Generate ensemble synthetic data
+print(f"\nGenerating ensemble synthetic data...")
+ensemble_data = []
+for station_id, result in results.items():
+    sim = pg.SimulationEngine(result['manifest'], random_seed=42)
+    sim.initialize(datetime(2025, 1, 1))
+    synthetic = [sim.step() for _ in range(365)]
+    ensemble_data.append({
+        'station_id': station_id,
+        'city': result['city'],
+        'synthetic_annual': sum(synthetic),
+        'historical_annual': result['annual_mean']
+    })
+
+print("Synthetic vs Historical Comparison:")
+for data in ensemble_data:
+    diff_pct = ((data['synthetic_annual'] - data['historical_annual']) / 
+                data['historical_annual']) * 100
+    print(f"{data['city']:12}: Synthetic={data['synthetic_annual']:6.1f} mm, "
+          f"Historical={data['historical_annual']:6.1f} mm ({diff_pct:+5.1f}%)")
 ```
 
 ## Version Compatibility
 
-**Current Version:** 0.1.0
+**Current Version:** 0.1.3
+
+### New in v0.1.3
+- **Built-in GHCN Downloader**: Automatic station discovery and data download
+- **Location-based search**: Find stations near any coordinates
+- **Batch processing**: Download and analyze multiple stations efficiently
+- **Quality validation**: Automatic data quality assessment before analysis
 
 ### Breaking Changes
-- This is the initial release
-- API is subject to change in future versions
-- Recommend pinning to specific version: `precipgen==0.1.0`
+- Added new dependency: `requests>=2.25.0` for HTTP downloads
+- New convenience functions: `find_nearby_stations()`, `download_station()`
 
 ### Deprecation Warnings
 - None in current version
@@ -1159,3 +1481,4 @@ print(f"Successfully processed {successful}/{len(results)} stations")
 - Parameter manifest format is designed to be forward-compatible
 - Configuration structure may evolve in future versions
 - Exception hierarchy is stable and will be maintained
+- GHCN downloader URLs may need updates if NOAA changes their servers
