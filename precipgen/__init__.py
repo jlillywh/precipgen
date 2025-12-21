@@ -17,6 +17,7 @@ from .config.precipgen_config import PrecipGenConfig
 from .config.quality_config import QualityConfig
 from .data.ghcn_parser import GHCNParser
 from .data.validator import DataValidator
+from .data.ghcn_downloader import GHCNDownloader, find_nearby_stations, download_station
 
 __all__ = [
     "BootstrapEngine",
@@ -26,4 +27,7 @@ __all__ = [
     "QualityConfig",
     "GHCNParser",
     "DataValidator",
+    "GHCNDownloader",
+    "find_nearby_stations",
+    "download_station",
 ]

@@ -8,6 +8,7 @@ climate data from various sources including GHCN format files.
 from .ghcn_parser import GHCNParser
 from .validator import DataValidator, ValidationResult, QualityReport
 from .base import DataSource
+from .ghcn_downloader import GHCNDownloader
 
 __all__ = [
     "GHCNParser",
@@ -15,4 +16,5 @@ __all__ = [
     "ValidationResult", 
     "QualityReport",
     "DataSource",
+    "GHCNDownloader",
 ]

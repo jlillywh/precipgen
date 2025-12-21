@@ -44,6 +44,11 @@ class PrecipGenError(Exception):
 
 
 # Data Loading Errors
+class NetworkError(PrecipGenError):
+    """Network connectivity and download errors."""
+    pass
+
+
 class DataLoadError(PrecipGenError):
     """Raised when data cannot be loaded from source."""
     pass
