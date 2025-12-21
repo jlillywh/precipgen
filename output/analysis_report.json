@@ -1,0 +1,31 @@
+{
+  "analysis_status": "success",
+  "errors": [],
+  "warnings": [
+    "Invalid trend slopes detected: Winter p_ww: -0.011582, Winter p_wd: 0.016457, Winter alpha: 0.107502, Spring p_ww: 0.021171, Spring p_wd: 0.013359, Summer p_ww: -0.010922, Summer alpha: -0.102145"
+  ],
+  "data_quality": {
+    "total_data_points": 3653,
+    "data_completeness": 1.0,
+    "data_period": [
+      "2000-01-01T00:00:00",
+      "2009-12-31T00:00:00"
+    ],
+    "wet_day_fraction": 0.25403777716944975
+  },
+  "analysis_results": {
+    "overall_parameters_calculated": true,
+    "monthly_parameter_count": 12,
+    "sliding_window_analysis": {
+      "completed": true,
+      "window_count": 8,
+      "window_years": 3
+    },
+    "trend_analysis": {
+      "completed": true,
+      "regression_type": "linear",
+      "seasons_analyzed": 4,
+      "validation_performed": true
+    }
+  }
+}
