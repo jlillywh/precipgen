@@ -13,7 +13,7 @@ pip install precipgen
 # Core imports
 import precipgen as pg
 from precipgen import (
-    PrecipGenConfig, QualityConfig, DataValidator, GHCNParser, GHCNDownloader,
+    PrecipGenConfig, QualityConfig, QualityPresets, DataValidator, GHCNParser, GHCNDownloader,
     AnalyticalEngine, SimulationEngine, BootstrapEngine,
     find_nearby_stations, download_station
 )
@@ -159,13 +159,144 @@ Data quality configuration and thresholds.
 class QualityConfig:
     """Configuration for data quality assessment."""
     
-    def __init__(self, min_completeness: float = 0.8, **kwargs)
+    def __init__(self, max_missing_percentage: float = 10.0,
+                 min_years_required: int = 10,
+                 max_consecutive_missing_days: int = 30,
+                 physical_bounds_min: float = 0.0,
+                 physical_bounds_max: float = 1000.0,
+                 quality_flags_to_reject: List[str] = None)
 ```
 
-**Attributes:**
-- `min_completeness` (float): Minimum data completeness threshold (0-1)
-- `max_missing_consecutive` (int): Maximum consecutive missing days
-- `physical_bounds` (dict): Physical bounds for precipitation values
+**Parameters:**
+- `max_missing_percentage` (float): Maximum percentage of missing data allowed (default: 10.0)
+- `min_years_required` (int): Minimum years of data required for analysis (default: 10)
+- `max_consecutive_missing_days` (int): Maximum consecutive missing days allowed (default: 30)
+- `physical_bounds_min` (float): Minimum physically plausible precipitation in mm (default: 0.0)
+- `physical_bounds_max` (float): Maximum physically plausible precipitation in mm (default: 1000.0)
+- `quality_flags_to_reject` (List[str]): GHCN quality flags that should reject data (default: ['X', 'W'])
+
+**Example:**
+```python
+# Custom quality configuration
+custom_quality = pg.QualityConfig(
+    max_missing_percentage=5.0,  # Stricter completeness requirement
+    min_years_required=15,       # Require more years of data
+    quality_flags_to_reject=['X', 'W', 'I']  # Reject more quality flags
+)
+
+validator = pg.DataValidator(custom_quality)
+```
+
+### precipgen.config.QualityPresets
+
+Pre-configured quality settings for different use cases.
+
+```python
+class QualityPresets:
+    """Pre-configured quality settings for common scenarios."""
+```
+
+#### Static Methods
+
+##### strict()
+
+```python
+@staticmethod
+def strict() -> QualityConfig
+```
+
+Research-grade quality requirements. Rejects any data with quality flags indicating potential issues.
+
+**Use for:** Academic research, climate studies, official reports.
+
+**Returns:**
+- `QualityConfig`: Strict quality configuration
+
+##### standard()
+
+```python
+@staticmethod
+def standard() -> QualityConfig
+```
+
+Standard quality requirements for most applications. Accepts minor quality issues but rejects major problems.
+
+**Use for:** Engineering applications, general analysis, planning.
+
+**Returns:**
+- `QualityConfig`: Standard quality configuration (default behavior)
+
+##### lenient()
+
+```python
+@staticmethod
+def lenient() -> QualityConfig
+```
+
+Lenient quality requirements for exploratory analysis. Accepts most data with quality flags, only rejects severe issues.
+
+**Use for:** Preliminary analysis, data exploration, proof of concept.
+
+**Returns:**
+- `QualityConfig`: Lenient quality configuration
+
+##### permissive()
+
+```python
+@staticmethod
+def permissive() -> QualityConfig
+```
+
+Very permissive quality requirements. Accepts all data regardless of quality flags.
+
+**Use for:** Data availability assessment, historical reconstruction.
+
+**Returns:**
+- `QualityConfig`: Permissive quality configuration
+
+##### get_preset()
+
+```python
+@staticmethod
+def get_preset(level: str) -> QualityConfig
+```
+
+Get a quality preset by name.
+
+**Parameters:**
+- `level` (str): Quality level ('strict', 'standard', 'lenient', 'permissive')
+
+**Returns:**
+- `QualityConfig`: Quality configuration for the specified level
+
+**Raises:**
+- `ValueError`: If level is not recognized
+
+##### list_presets()
+
+```python
+@staticmethod
+def list_presets() -> Dict[str, str]
+```
+
+List available quality presets with descriptions.
+
+**Returns:**
+- `Dict[str, str]`: Dictionary mapping preset names to descriptions
+
+**Example:**
+```python
+# Use a preset directly
+lenient_validator = pg.DataValidator(pg.QualityPresets.lenient())
+
+# Get preset by name
+config = pg.QualityPresets.get_preset('strict')
+
+# List all available presets
+presets = pg.QualityPresets.list_presets()
+for name, description in presets.items():
+    print(f"{name}: {description}")
+```
 
 ## Data Module
 
@@ -255,8 +386,11 @@ Data quality validation and assessment.
 class DataValidator:
     """Validate precipitation data quality."""
     
-    def __init__(self, quality_config: QualityConfig)
+    def __init__(self, quality_config: QualityConfig = None)
 ```
+
+**Parameters:**
+- `quality_config` (QualityConfig, optional): Quality configuration parameters. If None, uses standard preset.
 
 #### Methods
 
@@ -280,7 +414,7 @@ Comprehensive data quality assessment.
 
 **Example:**
 ```python
-validator = pg.DataValidator(config.quality)
+validator = pg.DataValidator(pg.QualityPresets.standard())
 report = validator.assess_data_quality(precip_data, site_id='USC00123456')
 
 print(f"Completeness: {report.completeness_percentage:.1f}%")
@@ -288,6 +422,52 @@ print(f"Acceptable: {report.is_acceptable}")
 print(f"Issues: {report.issues}")
 for rec in report.recommendations:
     print(f"  - {rec}")
+```
+
+##### assess_with_fallback()
+
+```python
+def assess_with_fallback(self, data: pd.Series, 
+                        quality_flags: pd.Series = None,
+                        site_id: Optional[str] = None,
+                        quality_levels: List[str] = None) -> QualityReport
+```
+
+Assess data quality with automatic fallback to more lenient standards.
+
+Tries quality levels in order until data passes or all levels are exhausted.
+
+**Parameters:**
+- `data` (pd.Series): Precipitation time series
+- `quality_flags` (pd.Series, optional): Quality flags for each data point
+- `site_id` (str, optional): Site identifier for logging
+- `quality_levels` (List[str], optional): Quality levels to try in order. Defaults to ['standard', 'lenient', 'permissive']
+
+**Returns:**
+- `QualityReport`: Quality report from the first passing quality level, or the most lenient attempt
+
+**Example:**
+```python
+# Automatic fallback - tries standard -> lenient -> permissive
+validator = pg.DataValidator()
+report = validator.assess_with_fallback(
+    precip_data, 
+    quality_flags=ghcn_data['quality_flag'],
+    site_id=station_id
+)
+
+print(f"Acceptable: {report.is_acceptable}")
+print("Recommendations:")
+for rec in report.recommendations:
+    print(f"  - {rec}")
+
+# Custom quality levels
+report = validator.assess_with_fallback(
+    precip_data,
+    quality_flags=ghcn_data['quality_flag'],
+    site_id=station_id,
+    quality_levels=['lenient', 'permissive']  # Skip standard
+)
 ```
 
 ##### validate_completeness()
@@ -1016,6 +1196,62 @@ log_config.setup_logging(level='INFO', log_file='precipgen.log')
 ```
 
 ## Usage Patterns
+
+### Simplified Quality Assessment Workflow (New in v0.1.3)
+
+```python
+import precipgen as pg
+from datetime import datetime
+
+# Download and parse GHCN data
+station_id = 'USW00024127'  # Salt Lake City
+downloader = pg.GHCNDownloader(cache_dir='data')
+dly_path = downloader.download_station_data(station_id)
+
+parser = pg.GHCNParser(dly_path)
+ghcn_data = parser.parse_dly_file(dly_path)
+precip_data = parser.extract_precipitation(ghcn_data)
+
+# OPTION 1: Automatic fallback (recommended for most users)
+validator = pg.DataValidator()
+quality_report = validator.assess_with_fallback(
+    precip_data, 
+    quality_flags=ghcn_data['quality_flag'],
+    site_id=station_id
+)
+
+print(f"Acceptable: {quality_report.is_acceptable}")
+print("Recommendations:")
+for rec in quality_report.recommendations:
+    print(f"  - {rec}")
+
+# OPTION 2: Use specific quality preset
+lenient_validator = pg.DataValidator(pg.QualityPresets.lenient())
+lenient_report = lenient_validator.assess_data_quality(
+    precip_data,
+    quality_flags=ghcn_data['quality_flag'],
+    site_id=station_id
+)
+
+print(f"Lenient assessment - Acceptable: {lenient_report.is_acceptable}")
+
+# OPTION 3: List available presets
+presets = pg.QualityPresets.list_presets()
+print("Available quality presets:")
+for name, description in presets.items():
+    print(f"  {name}: {description}")
+
+# Proceed with analysis if data is acceptable
+if quality_report.is_acceptable:
+    engine = pg.AnalyticalEngine(precip_data, wet_day_threshold=0.001)
+    manifest = engine.generate_parameter_manifest()
+    
+    sim = pg.SimulationEngine(manifest, random_seed=42)
+    sim.initialize(datetime(2025, 1, 1))
+    synthetic_data = [sim.step() for _ in range(365)]
+    
+    print(f"✓ Analysis complete! Synthetic annual total: {sum(synthetic_data):.1f} mm")
+```
 
 ### Basic Analysis Workflow
 
