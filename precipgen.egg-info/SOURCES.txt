@@ -16,6 +16,7 @@ docs/user_guide.md
 docs/examples/README.md
 docs/examples/basic_analysis.py
 docs/examples/download_ghcn_data.py
+docs/examples/quality_assessment_simplified.py
 docs/examples/simple_ghcn_download.py
 docs/examples/trend_analysis.py
 docs/examples/tutorial_01_getting_started.py
@@ -33,6 +34,7 @@ precipgen/config/__init__.py
 precipgen/config/data_source_config.py
 precipgen/config/precipgen_config.py
 precipgen/config/quality_config.py
+precipgen/config/quality_presets.py
 precipgen/data/__init__.py
 precipgen/data/base.py
 precipgen/data/ghcn_downloader.py

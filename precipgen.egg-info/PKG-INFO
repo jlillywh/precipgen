@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: precipgen
-Version: 0.1.2
+Version: 0.1.3
 Summary: A modular stochastic weather generation library
 Home-page: https://github.com/jlillywh/precipgen
 Author: PrecipGen Development Team

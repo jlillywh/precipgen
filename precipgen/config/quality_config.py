@@ -33,7 +33,7 @@ class QualityConfig:
         self.max_consecutive_missing_days = max_consecutive_missing_days
         self.physical_bounds_min = physical_bounds_min
         self.physical_bounds_max = physical_bounds_max
-        self.quality_flags_to_reject = quality_flags_to_reject or ['X', 'W']
+        self.quality_flags_to_reject = quality_flags_to_reject if quality_flags_to_reject is not None else ['X', 'W']
     
     def validate(self) -> List[str]:
         """

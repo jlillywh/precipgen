@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2024-12-21
+
+### Added
+- **Monte Carlo Simulation Framework**: New `PrecipitationSimulator` class for comprehensive precipitation modeling
+  - Integrated WGEN, bootstrap, and block bootstrap methods
+  - Automatic station finding and data loading
+  - Built-in parameter estimation and validation
+  - Comprehensive statistical analysis and visualization
+- **Water Resources Analysis**: Specialized analyzers for practical applications
+  - `DroughtAnalyzer`: Drought duration, severity, and frequency analysis
+  - `ExtremeEventAnalyzer`: Return period analysis for infrastructure design
+  - `SeasonalAnalyzer`: Seasonal water availability and variability assessment
+- **Jupyter Integration**: Streamlined workflow for interactive analysis
+  - One-line simulation setup and execution
+  - Automatic plot generation and data export
+  - Template notebooks for common use cases
+
+### Changed
+- **API Enhancement**: Added high-level simulation classes to main namespace
+- **Documentation**: Added comprehensive examples for water resources applications
+
+## [0.1.4] - 2024-12-21
+
+### Fixed
+- **Quality Assessment Bug**: Fixed critical bug in QualityConfig where empty quality_flags_to_reject list was incorrectly defaulting to ['X', 'W']
+  - Permissive quality preset now correctly accepts all quality flags as intended
+  - Fixed fallback quality assessment to properly use most lenient settings
+  - Data with quality flags now passes permissive quality standards correctly
+
 ## [0.1.1] - 2024-12-21
 
 ### Fixed

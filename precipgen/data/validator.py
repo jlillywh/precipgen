@@ -60,8 +60,14 @@ class QualityReport:
         if self.time_period_years < 10:
             recommendations.append("Extend time period for more reliable parameter estimation")
         
-        if self.quality_flag_issues > self.total_data_count * 0.1:
-            recommendations.append("High number of quality flag issues - review data source reliability")
+        if self.quality_flag_issues > 0:
+            flag_percentage = (self.quality_flag_issues / self.total_data_count) * 100
+            if flag_percentage < 1.0:
+                recommendations.append(f"Minor quality issues ({self.quality_flag_issues} records, {flag_percentage:.2f}%) - consider using 'lenient' quality preset")
+            elif flag_percentage < 5.0:
+                recommendations.append(f"Moderate quality issues ({self.quality_flag_issues} records, {flag_percentage:.2f}%) - review data or use 'lenient' quality preset")
+            else:
+                recommendations.append(f"Significant quality issues ({self.quality_flag_issues} records, {flag_percentage:.2f}%) - review data source reliability")
         
         return recommendations
 
@@ -74,13 +80,17 @@ class DataValidator:
     validation checks for precipitation time series with robust error handling.
     """
     
-    def __init__(self, quality_config: QualityConfig):
+    def __init__(self, quality_config: QualityConfig = None):
         """
         Initialize data validator.
         
         Args:
-            quality_config: Quality configuration parameters
+            quality_config: Quality configuration parameters. If None, uses standard preset.
         """
+        if quality_config is None:
+            from ..config.quality_presets import QualityPresets
+            quality_config = QualityPresets.standard()
+            
         self.quality_config = quality_config
         self.logger = get_logger('data_validator')
         
@@ -478,6 +488,57 @@ class DataValidator:
                 issues=[f"Quality assessment failed: {str(e)}"],
                 recommendations=["Review data loading and validation process"]
             )
+    
+    def assess_with_fallback(self, data: pd.Series, 
+                           quality_flags: pd.Series = None,
+                           site_id: Optional[str] = None,
+                           quality_levels: List[str] = None) -> QualityReport:
+        """
+        Assess data quality with automatic fallback to more lenient standards.
+        
+        Tries quality levels in order until data passes or all levels are exhausted.
+        
+        Args:
+            data: Time series of precipitation data
+            quality_flags: Optional quality flags for each data point
+            site_id: Optional site identifier for logging
+            quality_levels: Quality levels to try in order. Defaults to ['standard', 'lenient', 'permissive']
+            
+        Returns:
+            QualityReport from the first passing quality level, or the most lenient attempt
+        """
+        from ..config.quality_presets import QualityPresets
+        
+        if quality_levels is None:
+            quality_levels = ['standard', 'lenient', 'permissive']
+        
+        last_report = None
+        
+        for level in quality_levels:
+            self.logger.info(f"Trying quality level: {level}")
+            
+            # Create validator with this quality level
+            temp_config = QualityPresets.get_preset(level)
+            temp_validator = DataValidator(temp_config)
+            
+            # Assess quality
+            report = temp_validator.assess_data_quality(data, quality_flags, site_id)
+            last_report = report
+            
+            if report.is_acceptable:
+                self.logger.info(f"Data acceptable with '{level}' quality standards")
+                # Add info about which level was used
+                report.recommendations.insert(0, f"Data passed with '{level}' quality standards")
+                return report
+            else:
+                self.logger.info(f"Data not acceptable with '{level}' quality standards")
+        
+        # If we get here, no quality level passed
+        self.logger.warning(f"Data did not pass any quality level. Using most lenient results.")
+        if last_report:
+            last_report.recommendations.insert(0, "Data failed all quality levels - review data source or use custom quality configuration")
+        
+        return last_report or self.assess_data_quality(data, quality_flags, site_id)
     
     def validate_time_series_structure(self, data: pd.Series,
                                      expected_frequency: Optional[str] = 'D') -> ValidationResult:
